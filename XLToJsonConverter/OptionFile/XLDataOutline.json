@@ -2,6 +2,7 @@
   {
     "ObjectType": "Data.Test",
     "XLFileName": "Test.xlsx",
-    "SheetName": "TestSheet"
+    "SheetName": "TestSheet",
+    "SaveFileName": "Test.json"
   }
 ]

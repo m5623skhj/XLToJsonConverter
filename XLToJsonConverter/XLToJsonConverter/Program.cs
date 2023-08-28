@@ -1,11 +1,13 @@
-﻿namespace XLToJsonConverter
+﻿using OutlineInfoManager;
+
+namespace XLToJsonConverter
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-            var converter = XLToJsonConverter.GetInst();
-            converter.MakeXLFileToJsonFile();
+            var converter = DataConverter.GetInst();
+            converter.MakeXLDataToJsonFile();
         }
     }
 }

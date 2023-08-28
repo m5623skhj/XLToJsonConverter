@@ -5,44 +5,34 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Microsoft.Office.Interop.Excel;
 
-namespace XLToJsonConverter
+namespace OutlineInfoManager
 {
-    internal struct XLOutlineInfo
+    public struct XLOutlineInfo
     {
-        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName)
+        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName)
         {
-            objectType = _objectType;
-            xlFileName = _xlFileName;
-            sheetname = _sheetName;
+            ObjectType = _objectType;
+            XLFileName = _xlFileName;
+            SheetName = _sheetName;
+            SaveFileName = _saveFileName;
         }
 
-        public string objectType;
-        public string xlFileName;
-        public string sheetname;
+        public string ObjectType;
+        public string XLFileName;
+        public string SheetName;
+        public string SaveFileName;
     }
 
-    public class XLToJsonConverter
+    public class OutlineInfoManager
     {
-        private static XLToJsonConverter instance;
-        private readonly string dataOutlieFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\OptionFile\XLDataOutline.json");
-        private readonly string dataFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\Data\");
+        public readonly string dataOutlieFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\OptionFile\XLDataOutline.json");
+        public readonly string dataFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Data\");
 
         private List<XLOutlineInfo> xlOutlineInfoList = new List<XLOutlineInfo>();
 
-        private DataConverter converter = new DataConverter();
-
-        public static XLToJsonConverter GetInst()
-        {
-            if(instance == null)
-            {
-                instance = new XLToJsonConverter();
-            }
-
-            return instance;
-        }
-
-        public bool MakeXLFileToJsonFile()
+        public bool MakeOutlineInfo()
         {
             try
             {
@@ -50,7 +40,6 @@ namespace XLToJsonConverter
                 {
                     string dataOutline = reader.ReadToEnd();
                     xlOutlineInfoList = JsonConvert.DeserializeObject<List<XLOutlineInfo>>(dataOutline);
-
                 }
             }
             catch (Exception ex)
@@ -62,24 +51,89 @@ namespace XLToJsonConverter
             return true;
         }
 
-        private bool SaveToJson(List<object> objectList)
+        public List<XLOutlineInfo> GetAllOutlineInfo()
         {
-
-
-            return true;
+            return xlOutlineInfoList;
         }
     }
 
-    internal class DataConverter
+    public class DataConverter
     {
-        public string MakeXLDataStringToJson(string dataOutline)
+        private static DataConverter instance;
+        private OutlineInfoManager mappingInfoManager = new OutlineInfoManager();
+        private JsonSerializerSettings settings = new JsonSerializerSettings();
+
+        private Application app = new Application();
+        
+        DataConverter()
         {
+            settings.NullValueHandling = NullValueHandling.Ignore;
+            settings.Formatting = Formatting.Indented;
+
+            mappingInfoManager.MakeOutlineInfo();
+        }
+
+        public static DataConverter GetInst()
+        {
+            if (instance == null)
+            {
+                instance = new DataConverter();
+            }
+
+            return instance;
+        }
+
+        public bool MakeXLDataToJsonFile()
+        {
+            var outlineList = mappingInfoManager.GetAllOutlineInfo();
+            foreach(var xlOutlineInfo in outlineList)
+            {
+                var objectList = MakeXLDataToObjectList(xlOutlineInfo);
+                if(objectList != null)
+                {
+                    SaveObjectListToJson(objectList, xlOutlineInfo);
+                }
+            }
+
+            return true;
+        }
+
+        private void SaveObjectListToJson(List<object> objectList, XLOutlineInfo outlineInfo)
+        {
+            string jsonStream = JsonConvert.SerializeObject(objectList, settings);
+            File.WriteAllText(mappingInfoManager.dataFilePath + '/' + outlineInfo.SaveFileName, jsonStream);
+        }
+
+        private List<object> MakeXLDataToObjectList(XLOutlineInfo outlineInfo)
+        {
+            try
+            {
+                Workbook workbook = app.Workbooks.Open(mappingInfoManager.dataFilePath + outlineInfo.XLFileName);
+                if (workbook == null)
+                {
+                    Console.WriteLine("workbook open error with " + outlineInfo.XLFileName);
+                    return null;
+                }
+
+                var sheet = workbook.Sheets[outlineInfo.SheetName];
+                if (sheet == null)
+                {
+                    Console.WriteLine("sheet is null error with " + outlineInfo.XLFileName + @"\" + outlineInfo.SheetName);
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Read failed : " + ex.Message);
+                return null;
+            }
+
             return null;
         }
 
-        public bool ReadXLFile()
+        private string GetObjectListToJsonString(List<object> objectList)
         {
-            return true;
+            return JsonConvert.SerializeObject(objectList, settings);
         }
     }
 }
