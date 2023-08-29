@@ -11,18 +11,20 @@ namespace OutlineInfoManager
 {
     public struct XLOutlineInfo
     {
-        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName)
+        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName, int _HeaderCount)
         {
             ObjectType = _objectType;
             XLFileName = _xlFileName;
             SheetName = _sheetName;
             SaveFileName = _saveFileName;
+            HeaderCount = _HeaderCount;
         }
 
         public string ObjectType;
         public string XLFileName;
         public string SheetName;
         public string SaveFileName;
+        public int HeaderCount;
     }
 
     public class OutlineInfoManager
@@ -64,6 +66,8 @@ namespace OutlineInfoManager
         private JsonSerializerSettings settings = new JsonSerializerSettings();
 
         private Application app = new Application();
+
+        Dictionary<string, object> xlDataDictionary = new Dictionary<string, object>();
         
         DataConverter()
         {
@@ -115,12 +119,14 @@ namespace OutlineInfoManager
                     return null;
                 }
 
-                var sheet = workbook.Sheets[outlineInfo.SheetName];
+                Worksheet sheet = workbook.Sheets[outlineInfo.SheetName];
                 if (sheet == null)
                 {
                     Console.WriteLine("sheet is null error with " + outlineInfo.XLFileName + @"\" + outlineInfo.SheetName);
                     return null;
                 }
+
+                MakeXLDataToObject(sheet, outlineInfo);
             }
             catch (Exception ex)
             {
@@ -128,6 +134,103 @@ namespace OutlineInfoManager
                 return null;
             }
 
+            return null;
+        }
+
+        private object MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
+        {
+            object rootObject = Activator.CreateInstance(Type.GetType(outlineInfo.ObjectType));
+            if(rootObject == null)
+            {
+                Console.WriteLine("Root object is null " + outlineInfo.ObjectType);
+                return null;
+            }
+
+            var objectList = MakePropertiesStringFromXLData(sheet, outlineInfo);
+            foreach(var rootFieldInfo in rootObject.GetType().GetFields())
+            {
+                //SetObject()
+            }
+
+            return null;
+        }
+
+        private Dictionary<int, string> MakePropertiesStringFromXLData(Worksheet sheet, XLOutlineInfo outlineInfo)
+        {
+            Dictionary<int, string> propertyList = new Dictionary<int, string>();
+
+            int rowCount = sheet.UsedRange.Rows.Count;
+            int columnCount = sheet.UsedRange.Columns.Count;
+
+            Range range = sheet.UsedRange.Cells;
+            for (int row = 1; row <= outlineInfo.HeaderCount; ++row)
+            {
+                for (int column = 1; column <= columnCount; ++column)
+                {
+                    Range cells = range[column][row];
+                    propertyList.Add(column, GetDataFromCell(cells).ToString());
+                }
+            }
+
+            return propertyList;
+        }
+
+        private void MakePropertyString(Dictionary<int, string> propertyList, string typeName, Range range, int columnIndex) 
+        {
+            string dataName = Convert.ToString(range.Text.Trim());
+            if (propertyList.ContainsKey(columnIndex) == true)
+            {
+                propertyList[columnIndex] += "+" + dataName;
+            }
+            else
+            {
+                propertyList.Add(columnIndex, typeName + "+" + dataName);
+            }
+        }
+
+        private void MakePropertyStringWithMergeCells(Dictionary<int, string> propertyList, string typeName, Range range, int columnIndex)
+        {
+            string dataName = ((Range)range.MergeArea[1, 1]).Text.Trim();
+            if(propertyList.ContainsKey(columnIndex) == true)
+            {
+                string property = propertyList[columnIndex];
+                if(property.IndexOf(dataName, property.Length - dataName.Length) != -1)
+                {
+                    return;
+                }
+
+                propertyList[columnIndex] += "+" + dataName;
+            }
+            else
+            {
+                propertyList.Add(columnIndex, typeName + "+" + dataName);
+            }
+        }
+
+        private object GetDataFromCell(Range cells)
+        {
+            if (cells.MergeCells == true)
+            {
+                return cells.MergeArea.Cells[1, 1];
+            }
+            else
+            {
+                return cells.Value;
+            }
+        }
+
+        private object SetItem()
+        {
+            return null;
+        }
+
+        private object SetObject()
+        {
+            return null;
+        }
+
+        private object SetList()
+        {
             return null;
         }
 

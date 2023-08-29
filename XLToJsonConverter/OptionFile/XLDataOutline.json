@@ -3,6 +3,7 @@
     "ObjectType": "Data.Test",
     "XLFileName": "Test.xlsx",
     "SheetName": "TestSheet",
-    "SaveFileName": "Test.json"
+    "SaveFileName": "Test.json",
+    "HeaderCount":  1
   }
 ]
