@@ -139,28 +139,53 @@ namespace OutlineInfoManager
 
         private object MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
         {
-            object rootObject = Activator.CreateInstance(Type.GetType(outlineInfo.ObjectType));
-            if(rootObject == null)
+            Range range = sheet.UsedRange;
+            int rowCount = sheet.UsedRange.Rows.Count;
+            int columnCount = sheet.UsedRange.Columns.Count;
+
+            var propertyList = MakePropertiesStringFromXLData(sheet, outlineInfo, columnCount);
+            Dictionary<string, List<object>> xlDataList = new Dictionary<string, List<object>>();
+            for (int rowIndex = outlineInfo.HeaderCount + 1; rowIndex <= rowCount; ++rowIndex)
             {
-                Console.WriteLine("Root object is null " + outlineInfo.ObjectType);
-                return null;
+                for(int columnIndex = 1; columnIndex <= columnCount; ++columnIndex)
+                {
+                    if (xlDataList.ContainsKey(propertyList[columnIndex]) == false)
+                    {
+                        List<object> objectList = new List<object>();
+                        objectList.Add(range.Cells[columnIndex][rowIndex].Value);
+
+                        xlDataList.Add(propertyList[columnIndex], objectList);
+                    }
+                    else
+                    {
+                        xlDataList[propertyList[columnIndex]].Add(range.Cells[columnIndex][rowIndex].Value);
+                    }
+                }
             }
 
-            var objectList = MakePropertiesStringFromXLData(sheet, outlineInfo);
-            foreach(var rootFieldInfo in rootObject.GetType().GetFields())
+            /*
+            foreach (var item in objectList)
             {
-                //SetObject()
+                object rootObject = Activator.CreateInstance(Type.GetType(outlineInfo.ObjectType));
+                if(rootObject == null)
+                {
+                    Console.WriteLine("Root object is null " + outlineInfo.ObjectType);
+                    return null;
+                }
+
+                foreach (var rootFieldInfo in rootObject.GetType().GetFields())
+                {
+
+                }
             }
+            */
 
             return null;
         }
 
-        private Dictionary<int, string> MakePropertiesStringFromXLData(Worksheet sheet, XLOutlineInfo outlineInfo)
+        private Dictionary<int, string> MakePropertiesStringFromXLData(Worksheet sheet, XLOutlineInfo outlineInfo, int columnCount)
         {
             Dictionary<int, string> propertyList = new Dictionary<int, string>();
-
-            int rowCount = sheet.UsedRange.Rows.Count;
-            int columnCount = sheet.UsedRange.Columns.Count;
 
             Range range = sheet.UsedRange.Cells;
             for (int row = 1; row <= outlineInfo.HeaderCount; ++row)
