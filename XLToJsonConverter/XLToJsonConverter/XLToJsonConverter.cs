@@ -1,12 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Microsoft.Office.Interop.Excel;
-using System.Net;
 using System.Reflection;
 using Data;
 
@@ -289,12 +286,10 @@ namespace OutlineInfoManager
 
         private Tuple<bool, object> MakeFieldFromXLData(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
-            Tuple<bool, object> returnValue = new Tuple<bool, object>(false, null);
-
             GetItemName(fieldInfo, ref fullName);
             if (IsListType(fieldInfo.FieldType) == true)
             {
-                returnValue = SetList(xlDataList, outlineInfo, field, fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
+                return SetList(xlDataList, outlineInfo, field, fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
             }
             else if(IsStruct(fieldInfo.FieldType) == true 
                 || IsClassType(fieldInfo.FieldType) == true)
@@ -311,14 +306,12 @@ namespace OutlineInfoManager
                     PopName(ref fullName);
                 }
 
-                returnValue = new Tuple<bool, object>(true, field);
+                return new Tuple<bool, object>(true, field);
             }
             else
             {
-                returnValue = SetItem(xlDataList, outlineInfo, field, fieldInfo, fullName, ref allVariableIsNull, ref errorOccurred);
+                return SetItem(xlDataList, outlineInfo, field, fieldInfo, fullName, ref allVariableIsNull, ref errorOccurred);
             }
-
-            return returnValue;
         }
 
         private Tuple<bool, object> SetItem(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
@@ -357,7 +350,90 @@ namespace OutlineInfoManager
 
         private Tuple<bool, object> SetList(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
-            return null;
+            Type type = field.GetType().GetGenericArguments()[0];
+            Type listType = typeof(List<>).MakeGenericType(new[] { type });
+            IList returnList = (IList)Activator.CreateInstance(listType);
+
+            List<object> itemList = new List<object>();
+            bool listElementIsItemType = IsItemType(type);
+
+            if(listElementIsItemType == false)
+            {
+                PushName(ref fullName, type.Name);
+            }
+            AddNullItemByXLData(xlDataList, fullName, itemList, type);
+
+            foreach(var item in itemList)
+            {
+                if(listElementIsItemType == false)
+                {
+                    SetListElementForNotItemType(xlDataList, outlineInfo, field, item, returnList, ref fullName, ref allVariableIsNull, ref errorOccurred);
+                }
+                else
+                {
+                    returnList.Add(ConvertType(xlDataList[fullName][0], type));
+                    xlDataList[fullName].RemoveAt(0);
+                }
+            }
+
+            return new Tuple<bool, object>(true, returnList);
+        }
+
+        private void SetListElementForNotItemType(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, object item, IList returnList, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
+        {
+            foreach (var itemField in item.GetType().GetFields())
+            {
+                if (IsItemType(itemField.FieldType) == true)
+                {
+                    GetItemName(itemField, ref fullName);
+                    var retval = SetItem(xlDataList, outlineInfo, itemField.GetValue(item), itemField
+                        , fullName, ref allVariableIsNull, ref errorOccurred);
+                    if (retval == null)
+                    {
+                        return;
+                    }
+
+                    itemField.SetValue(item, retval.Item2);
+                    PopName(ref fullName);
+                }
+                else
+                {
+                    foreach (var nestedFieldInfo in item.GetType().GetFields())
+                    {
+                        var retval = MakeFieldFromXLData(xlDataList, outlineInfo, field, nestedFieldInfo
+                            , ref fullName, ref allVariableIsNull, ref errorOccurred);
+                        if (retval == null)
+                        {
+                            return;
+                        }
+
+                        nestedFieldInfo.SetValue(nestedFieldInfo, retval.Item2);
+                    }
+                }
+
+                returnList.Add(item);
+            }
+        }
+
+        private void AddNullItemByXLData(XLDataListType xlDataList, string variableFullName, List<object> itemList, Type objectType)
+        {
+            foreach (var xlData in xlDataList)
+            {
+                if (xlData.Key.Contains(variableFullName) == false)
+                {
+                    continue;
+                }
+
+                if (itemList.Count >= xlData.Value.Count)
+                {
+                    continue;
+                }
+
+                for (int listCount = itemList.Count; listCount < xlData.Value.Count; ++listCount)
+                {
+                    itemList.Add(Activator.CreateInstance(objectType));
+                }
+            }
         }
 
         private void GetItemName(FieldInfo fieldInfo, ref string fullName)
@@ -401,7 +477,6 @@ namespace OutlineInfoManager
 
         private bool IsClassType(Type targetType)
         {
-            // string 때문에 System 조건 추가
             return (targetType.IsClass == true && targetType.FullName.StartsWith("System.") == false);
         }
 
