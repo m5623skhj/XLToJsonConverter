@@ -6,6 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Microsoft.Office.Interop.Excel;
+using System.Net;
+using System.Reflection;
+using Data;
 
 namespace OutlineInfoManager
 {
@@ -25,6 +28,11 @@ namespace OutlineInfoManager
         public string SheetName;
         public string SaveFileName;
         public int HeaderCount;
+
+        public Type GetObjectType()
+        {
+            return Type.GetType("Data" + ObjectType);
+        }
     }
 
     public class OutlineInfoManager
@@ -68,13 +76,19 @@ namespace OutlineInfoManager
         private Application app = new Application();
 
         Dictionary<string, object> xlDataDictionary = new Dictionary<string, object>();
-        
+        List<string> errorLogList = new List<string>();
+
         DataConverter()
         {
             settings.NullValueHandling = NullValueHandling.Ignore;
             settings.Formatting = Formatting.Indented;
 
             mappingInfoManager.MakeOutlineInfo();
+        }
+
+        private void WriteErrorLog(string xlFileName, string sheetName, string errorString)
+        {
+            errorLogList.Add(xlFileName + "/" + sheetName + "/" + errorString);
         }
 
         public static DataConverter GetInst()
@@ -137,13 +151,14 @@ namespace OutlineInfoManager
             return null;
         }
 
-        private object MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
+        private string MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
         {
             Range range = sheet.UsedRange;
             int rowCount = sheet.UsedRange.Rows.Count;
             int columnCount = sheet.UsedRange.Columns.Count;
 
             var propertyList = MakePropertiesStringFromXLData(sheet, outlineInfo, columnCount);
+            List<object> itemList = new List<object>();
             Dictionary<string, List<object>> xlDataList = new Dictionary<string, List<object>>();
             for (int rowIndex = outlineInfo.HeaderCount + 1; rowIndex <= rowCount; ++rowIndex)
             {
@@ -161,26 +176,27 @@ namespace OutlineInfoManager
                         xlDataList[propertyList[columnIndex]].Add(range.Cells[columnIndex][rowIndex].Value);
                     }
                 }
-            }
 
-            /*
-            foreach (var item in objectList)
-            {
-                object rootObject = Activator.CreateInstance(Type.GetType(outlineInfo.ObjectType));
-                if(rootObject == null)
+                bool allVariableIsNull = true;
+                bool errorOccured = false;
+
+                object item = MakeObject(outlineInfo.GetObjectType(), outlineInfo, ref allVariableIsNull, ref errorOccured);
+                if (item == null || errorOccured == true)
                 {
-                    Console.WriteLine("Root object is null " + outlineInfo.ObjectType);
-                    return null;
+                    errorOccured = true;
+                    continue;
                 }
 
-                foreach (var rootFieldInfo in rootObject.GetType().GetFields())
+                if(allVariableIsNull == true)
                 {
-
+                    continue;
                 }
-            }
-            */
 
-            return null;
+                itemList.Add(item);
+                xlDataList.Clear();
+            }
+
+            return JsonConvert.SerializeObject(itemList, settings);
         }
 
         private Dictionary<int, string> MakePropertiesStringFromXLData(Worksheet sheet, XLOutlineInfo outlineInfo, int columnCount)
@@ -244,12 +260,65 @@ namespace OutlineInfoManager
             }
         }
 
-        private object SetItem()
+        private object MakeObject(Type rootObjectType, XLOutlineInfo outlineInfo, ref bool allVariableIsNull, ref bool errorOccurred)
         {
-            return null;
+            object item = Activator.CreateInstance(rootObjectType);
+            if(item == null)
+            {
+                WriteErrorLog(outlineInfo.XLFileName, outlineInfo.SheetName, " item is null");
+                errorOccurred = true;
+                return null;
+            }
+
+            foreach(FieldInfo fieldInfo in item.GetType().GetFields())
+            {
+                string fullName = fieldInfo.DeclaringType.FullName;
+                var itemTuple = MakeFieldFromXLData(fieldInfo.GetValue(item), fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);                if(itemTuple.Item1 == false)
+                {
+                    return null;
+                }
+
+                fieldInfo.SetValue(item, itemTuple.Item2);
+            }
+
+            return item;
         }
 
-        private object SetObject()
+        private Tuple<bool, object> MakeFieldFromXLData(object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
+        {
+            Tuple<bool, object> returnValue = new Tuple<bool, object>(false, null);
+
+            GetItemName(fieldInfo, ref fullName);
+            if (IsListType(fieldInfo.FieldType) == true)
+            {
+                //returnValue = SetList();
+            }
+            else if(IsStruct(fieldInfo.FieldType) == true 
+                || IsClassType(fieldInfo.FieldType) == true)
+            {
+                foreach(var nestedFieldInfo in field.GetType().GetFields())
+                {
+                    var nestedField = MakeFieldFromXLData(nestedFieldInfo.GetValue(field), nestedFieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
+                    if(nestedField.Item1 == false)
+                    {
+                        return returnValue;
+                    }
+
+                    nestedFieldInfo.SetValue(field, nestedField.Item2);
+                    PopName(ref fullName);
+                }
+
+                returnValue = new Tuple<bool, object>(true, field);
+            }
+            else
+            {
+                //returnValue = SetItem();
+            }
+
+            return returnValue;
+        }
+
+        private object SetItem()
         {
             return null;
         }
@@ -257,6 +326,66 @@ namespace OutlineInfoManager
         private object SetList()
         {
             return null;
+        }
+
+        private void GetItemName(FieldInfo fieldInfo, ref string fullName)
+        {
+            string alias = DataAttributeUtils.GetAliasName(fieldInfo.CustomAttributes);
+            if(alias is null)
+            {
+                PushName(ref fullName, fieldInfo.Name);
+            }
+            else
+            {
+                PushName(ref fullName, alias);
+            }
+        }
+
+        private void PushName(ref string fullName, string addString)
+        {
+            fullName += "+" + addString;
+        }
+
+        private void PopName(ref string fullName)
+        {
+            fullName = fullName.Substring(0, fullName.LastIndexOf('+'));
+        }
+
+        private bool IsStruct(Type targetType)
+        {
+            Type checkType;
+            Type nullableType = Nullable.GetUnderlyingType(targetType);
+            if (nullableType == null)
+            {
+                checkType = targetType;
+            }
+            else
+            {
+                checkType = nullableType;
+            }
+
+            return !checkType.IsPrimitive && checkType.IsValueType && !checkType.IsEnum;
+        }
+
+        private bool IsClassType(Type targetType)
+        {
+            // string 때문에 System 조건 추가
+            return (targetType.IsClass == true && targetType.FullName.StartsWith("System.") == false);
+        }
+
+        private bool IsListType(Type targetType)
+        {
+            if (targetType.IsGenericType == false)
+            {
+                return false;
+            }
+
+            return targetType.GetGenericTypeDefinition() == typeof(List<>);
+        }
+
+        private bool IsItemType(Type targetType)
+        {
+            return IsListType(targetType) == false && IsClassType(targetType) == false && IsStruct(targetType) == false;
         }
 
         private string GetObjectListToJsonString(List<object> objectList)

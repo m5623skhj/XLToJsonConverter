@@ -42,5 +42,11 @@ namespace Data
 
             return isRequired.Value;
         }
+
+        public static string GetAliasName(IEnumerable<CustomAttributeData> customAttributes)
+        {
+            var alias = GetDataAttribute("Alias", customAttributes);
+            return alias != null ? alias.Value : null;
+        }
     }
 }
