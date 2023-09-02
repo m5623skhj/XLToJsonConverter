@@ -12,6 +12,8 @@ using Data;
 
 namespace OutlineInfoManager
 {
+    using XLDataListType = Dictionary<string, List<object>>;
+
     public struct XLOutlineInfo
     {
         public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName, int _HeaderCount)
@@ -159,7 +161,7 @@ namespace OutlineInfoManager
 
             var propertyList = MakePropertiesStringFromXLData(sheet, outlineInfo, columnCount);
             List<object> itemList = new List<object>();
-            Dictionary<string, List<object>> xlDataList = new Dictionary<string, List<object>>();
+            XLDataListType xlDataList = new XLDataListType();
             for (int rowIndex = outlineInfo.HeaderCount + 1; rowIndex <= rowCount; ++rowIndex)
             {
                 for(int columnIndex = 1; columnIndex <= columnCount; ++columnIndex)
@@ -180,7 +182,7 @@ namespace OutlineInfoManager
                 bool allVariableIsNull = true;
                 bool errorOccured = false;
 
-                object item = MakeObject(outlineInfo.GetObjectType(), outlineInfo, ref allVariableIsNull, ref errorOccured);
+                object item = MakeObject(xlDataList, outlineInfo.GetObjectType(), outlineInfo, ref allVariableIsNull, ref errorOccured);
                 if (item == null || errorOccured == true)
                 {
                     errorOccured = true;
@@ -260,7 +262,7 @@ namespace OutlineInfoManager
             }
         }
 
-        private object MakeObject(Type rootObjectType, XLOutlineInfo outlineInfo, ref bool allVariableIsNull, ref bool errorOccurred)
+        private object MakeObject(XLDataListType xlDataList, Type rootObjectType, XLOutlineInfo outlineInfo, ref bool allVariableIsNull, ref bool errorOccurred)
         {
             object item = Activator.CreateInstance(rootObjectType);
             if(item == null)
@@ -273,7 +275,8 @@ namespace OutlineInfoManager
             foreach(FieldInfo fieldInfo in item.GetType().GetFields())
             {
                 string fullName = fieldInfo.DeclaringType.FullName;
-                var itemTuple = MakeFieldFromXLData(fieldInfo.GetValue(item), fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);                if(itemTuple.Item1 == false)
+                var itemTuple = MakeFieldFromXLData(xlDataList, outlineInfo, fieldInfo.GetValue(item), fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
+                if(itemTuple == null)
                 {
                     return null;
                 }
@@ -284,24 +287,24 @@ namespace OutlineInfoManager
             return item;
         }
 
-        private Tuple<bool, object> MakeFieldFromXLData(object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
+        private Tuple<bool, object> MakeFieldFromXLData(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
             Tuple<bool, object> returnValue = new Tuple<bool, object>(false, null);
 
             GetItemName(fieldInfo, ref fullName);
             if (IsListType(fieldInfo.FieldType) == true)
             {
-                //returnValue = SetList();
+                returnValue = SetList(xlDataList, outlineInfo, field, fieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
             }
             else if(IsStruct(fieldInfo.FieldType) == true 
                 || IsClassType(fieldInfo.FieldType) == true)
             {
                 foreach(var nestedFieldInfo in field.GetType().GetFields())
                 {
-                    var nestedField = MakeFieldFromXLData(nestedFieldInfo.GetValue(field), nestedFieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
+                    var nestedField = MakeFieldFromXLData(xlDataList, outlineInfo, nestedFieldInfo.GetValue(field), nestedFieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
                     if(nestedField.Item1 == false)
                     {
-                        return returnValue;
+                        return null;
                     }
 
                     nestedFieldInfo.SetValue(field, nestedField.Item2);
@@ -312,18 +315,47 @@ namespace OutlineInfoManager
             }
             else
             {
-                //returnValue = SetItem();
+                returnValue = SetItem(xlDataList, outlineInfo, field, fieldInfo, fullName, ref allVariableIsNull, ref errorOccurred);
             }
 
             return returnValue;
         }
 
-        private object SetItem()
+        private Tuple<bool, object> SetItem(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
-            return null;
+            if(xlDataList.ContainsKey(fullName) == false)
+            {
+                WriteErrorLog(outlineInfo.XLFileName, outlineInfo.SheetName, fullName + " is not found in item list");
+                return null;
+            }
+
+            object item = xlDataList[fullName];
+            string columnName = fullName.Substring(fullName.IndexOf('+') + 1);
+            if(CheckRequired(fieldInfo) == true && item == null)
+            {
+                WriteErrorLog(outlineInfo.XLFileName, outlineInfo.SheetName, " is null");
+                errorOccurred = true;
+                return null;
+            }
+
+            if(CheckAttributes(fieldInfo, outlineInfo, item, columnName) == false)
+            {
+                errorOccurred = true;
+                return null;
+            }
+
+            if(item != null)
+            {
+                allVariableIsNull = false;
+            }
+
+            field = ConvertType(item, fieldInfo.FieldType);
+            xlDataList[fullName].RemoveAt(0);
+
+            return new Tuple<bool, object>(true, field);
         }
 
-        private object SetList()
+        private Tuple<bool, object> SetList(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
             return null;
         }
@@ -386,6 +418,95 @@ namespace OutlineInfoManager
         private bool IsItemType(Type targetType)
         {
             return IsListType(targetType) == false && IsClassType(targetType) == false && IsStruct(targetType) == false;
+        }
+
+        private bool IsNumericType(dynamic targetItem)
+        {
+            if (targetItem == null)
+            {
+                return false;
+            }
+
+            switch (Type.GetTypeCode(targetItem.GetType()))
+            {
+                case TypeCode.Byte:
+                case TypeCode.SByte:
+                case TypeCode.UInt16:
+                case TypeCode.UInt32:
+                case TypeCode.UInt64:
+                case TypeCode.Int16:
+                case TypeCode.Int32:
+                case TypeCode.Int64:
+                case TypeCode.Decimal:
+                case TypeCode.Double:
+                case TypeCode.Single:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private bool CheckRequired(FieldInfo fieldInfo)
+        {
+            return DataAttributeUtils.IsRequired(fieldInfo.CustomAttributes);
+        }
+
+        private bool CheckAttributes(FieldInfo fieldInfo, XLOutlineInfo outlineInfo, dynamic targetItem, string columnName)
+        {
+            bool check = true;
+            check &= CheckMinMax(fieldInfo, outlineInfo, targetItem, columnName);
+
+            return check;
+        }
+
+        private bool CheckMinMax(FieldInfo fieldInfo, XLOutlineInfo outlineInfo, dynamic targetItem, string columnName)
+        {
+            if (targetItem == null || IsNumericType(targetItem) == false)
+            {
+                return true;
+            }
+
+            if (fieldInfo == null)
+            {
+                return false;
+            }
+
+            double? minValue = DataAttributeUtils.GetMinValue(fieldInfo.CustomAttributes, targetItem);
+            if (minValue != null && minValue > targetItem)
+            {
+                WriteErrorLog(outlineInfo.XLFileName, outlineInfo.SheetName, columnName + " : " + targetItem + ", MinValue : " + minValue);
+                return false;
+            }
+
+            double? maxValue = DataAttributeUtils.GetMaxValue(fieldInfo.CustomAttributes, targetItem);
+            if (maxValue != null && maxValue < targetItem)
+            {
+                WriteErrorLog(outlineInfo.XLFileName, outlineInfo.SheetName, columnName + " : " + targetItem + ", MaxValue : " + maxValue);
+                return false;
+            }
+
+            return true;
+        }
+
+        private dynamic ConvertType(dynamic from, Type to)
+        {
+            if (from == null || to == null)
+            {
+                return null;
+            }
+
+            Type realDestType;
+            Type nullableType = Nullable.GetUnderlyingType(to);
+            if (nullableType != null)
+            {
+                realDestType = nullableType;
+            }
+            else
+            {
+                realDestType = to;
+            }
+
+            return Convert.ChangeType(from, realDestType);
         }
 
         private string GetObjectListToJsonString(List<object> objectList)

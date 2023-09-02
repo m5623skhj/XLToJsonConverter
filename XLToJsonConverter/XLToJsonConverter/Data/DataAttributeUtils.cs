@@ -48,5 +48,27 @@ namespace Data
             var alias = GetDataAttribute("Alias", customAttributes);
             return alias != null ? alias.Value : null;
         }
+
+        public static double? GetMinValue(IEnumerable<CustomAttributeData> customAttributes, double checkValue)
+        {
+            var minValue = GetDataAttribute("MinValue", customAttributes);
+            if (minValue == null)
+            {
+                return null;
+            }
+
+            return minValue.Value;
+        }
+
+        public static double? GetMaxValue(IEnumerable<CustomAttributeData> customAttributes, double checkValue)
+        {
+            var maxValue = GetDataAttribute("MaxValue", customAttributes);
+            if (maxValue == null)
+            {
+                return null;
+            }
+
+            return maxValue.Value;
+        }
     }
 }
