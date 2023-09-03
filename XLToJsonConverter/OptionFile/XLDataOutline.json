@@ -3,7 +3,21 @@
     "ObjectType": "Data.Test",
     "XLFileName": "Test.xlsx",
     "SheetName": "TestSheet",
-    "SaveFileName": "Test.json",
-    "HeaderCount":  1
+    "SaveFileName": "Test1.json",
+    "HeaderCount": 1
+  },
+  {
+    "ObjectType": "Data.Test",
+    "XLFileName": "Test.xlsx",
+    "SheetName": "Sheet1",
+    "SaveFileName": "Test2.json",
+    "HeaderCount": 3
+  },
+  {
+    "ObjectType": "Data.Test",
+    "XLFileName": "Test.xlsx",
+    "SheetName": "Sheet2",
+    "SaveFileName": "Test3.json",
+    "HeaderCount": 2
   }
 ]
