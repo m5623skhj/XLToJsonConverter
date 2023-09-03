@@ -4,20 +4,23 @@
     "XLFileName": "Test.xlsx",
     "SheetName": "TestSheet",
     "SaveFileName": "Test1.json",
-    "HeaderCount": 1
+    "HeaderCount": 1,
+    "IsVerticalData": false
   },
   {
     "ObjectType": "Test2",
     "XLFileName": "Test.xlsx",
     "SheetName": "Sheet1",
     "SaveFileName": "Test2.json",
-    "HeaderCount": 3
+    "HeaderCount": 2,
+    "IsVerticalData": false
   },
   {
     "ObjectType": "Test3",
     "XLFileName": "Test.xlsx",
     "SheetName": "Sheet2",
     "SaveFileName": "Test3.json",
-    "HeaderCount": 2
+    "HeaderCount": 2,
+    "IsVerticalData": true
   }
 ]

@@ -13,13 +13,14 @@ namespace OutlineInfoManager
 
     public struct XLOutlineInfo
     {
-        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName, int _HeaderCount)
+        public XLOutlineInfo(string _objectType, string _xlFileName, string _sheetName, string _saveFileName, int _HeaderCount, bool _IsVerticalData)
         {
             ObjectType = _objectType;
             XLFileName = _xlFileName;
             SheetName = _sheetName;
             SaveFileName = _saveFileName;
             HeaderCount = _HeaderCount;
+            IsVerticalData = _IsVerticalData;
         }
 
         public string ObjectType;
@@ -27,10 +28,11 @@ namespace OutlineInfoManager
         public string SheetName;
         public string SaveFileName;
         public int HeaderCount;
+        public bool IsVerticalData;
 
         public Type GetObjectType()
         {
-            return Type.GetType("Data" + ObjectType);
+            return Type.GetType("Data." + ObjectType);
         }
     }
 
@@ -38,6 +40,7 @@ namespace OutlineInfoManager
     {
         public readonly string dataOutlieFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\OptionFile\XLDataOutline.json");
         public readonly string dataFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Data\");
+        public readonly string jsonSavePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\Generated\");
 
         private List<XLOutlineInfo> xlOutlineInfoList = new List<XLOutlineInfo>();
 
@@ -118,7 +121,7 @@ namespace OutlineInfoManager
         private void SaveObjectListToJson(List<object> objectList, XLOutlineInfo outlineInfo)
         {
             string jsonStream = JsonConvert.SerializeObject(objectList, settings);
-            File.WriteAllText(mappingInfoManager.dataFilePath + '/' + outlineInfo.SaveFileName, jsonStream);
+            File.WriteAllText(mappingInfoManager.jsonSavePath + '/' + outlineInfo.SaveFileName, jsonStream);
         }
 
         private List<object> MakeXLDataToObjectList(XLOutlineInfo outlineInfo)
@@ -139,18 +142,16 @@ namespace OutlineInfoManager
                     return null;
                 }
 
-                MakeXLDataToObject(sheet, outlineInfo);
+                return MakeXLDataToObject(sheet, outlineInfo);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Read failed : " + ex.Message);
                 return null;
             }
-
-            return null;
         }
 
-        private string MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
+        private List<object> MakeXLDataToObject(Worksheet sheet, XLOutlineInfo outlineInfo)
         {
             Range range = sheet.UsedRange;
             int rowCount = sheet.UsedRange.Rows.Count;
@@ -195,20 +196,40 @@ namespace OutlineInfoManager
                 xlDataList.Clear();
             }
 
-            return JsonConvert.SerializeObject(itemList, settings);
+            return itemList;
         }
 
         private Dictionary<int, string> MakePropertiesStringFromXLData(Worksheet sheet, XLOutlineInfo outlineInfo, int columnCount)
         {
             Dictionary<int, string> propertyList = new Dictionary<int, string>();
-
             Range range = sheet.UsedRange.Cells;
+            if (outlineInfo.IsVerticalData == false)
+            {
+                columnCount = range.Columns.Count;
+            }
+            else
+            {
+                columnCount = range.Rows.Count;
+            }
+
             for (int row = 1; row <= outlineInfo.HeaderCount; ++row)
             {
                 for (int column = 1; column <= columnCount; ++column)
                 {
-                    Range cells = range[column][row];
-                    propertyList.Add(column, GetDataFromCell(cells).ToString());
+                    if (outlineInfo.IsVerticalData == true && column == 1)
+                    {
+                        continue;
+                    }
+
+                    Range objectRange = GetDataFromCell(range, column, row, outlineInfo.IsVerticalData);
+                    if (objectRange.MergeCells == false)
+                    {
+                        MakePropertyString(propertyList, outlineInfo.ObjectType, objectRange, column);
+                    }
+                    else
+                    {
+                        MakePropertyStringWithMergeCells(propertyList, outlineInfo.ObjectType, objectRange, column);
+                    }
                 }
             }
 
@@ -224,7 +245,7 @@ namespace OutlineInfoManager
             }
             else
             {
-                propertyList.Add(columnIndex, typeName + "+" + dataName);
+                propertyList.Add(columnIndex, "Data." + typeName + "+" + dataName);
             }
         }
 
@@ -243,19 +264,19 @@ namespace OutlineInfoManager
             }
             else
             {
-                propertyList.Add(columnIndex, typeName + "+" + dataName);
+                propertyList.Add(columnIndex, "Data." + typeName + "+" + dataName);
             }
         }
 
-        private object GetDataFromCell(Range cells)
+        private Range GetDataFromCell(Range cells, int column, int row, bool isVerticalData)
         {
-            if (cells.MergeCells == true)
+            if (isVerticalData == false)
             {
-                return cells.MergeArea.Cells[1, 1];
+                return cells.Cells[column][row];
             }
             else
             {
-                return cells.Value;
+                return cells.Cells[row][column];
             }
         }
 
@@ -297,7 +318,7 @@ namespace OutlineInfoManager
                 foreach(var nestedFieldInfo in field.GetType().GetFields())
                 {
                     var nestedField = MakeFieldFromXLData(xlDataList, outlineInfo, nestedFieldInfo.GetValue(field), nestedFieldInfo, ref fullName, ref allVariableIsNull, ref errorOccurred);
-                    if(nestedField.Item1 == false)
+                    if(nestedField == null)
                     {
                         return null;
                     }
@@ -322,7 +343,7 @@ namespace OutlineInfoManager
                 return null;
             }
 
-            object item = xlDataList[fullName];
+            object item = xlDataList[fullName][0];
             string columnName = fullName.Substring(fullName.IndexOf('+') + 1);
             if(CheckRequired(fieldInfo) == true && item == null)
             {
@@ -350,7 +371,7 @@ namespace OutlineInfoManager
 
         private Tuple<bool, object> SetList(XLDataListType xlDataList, XLOutlineInfo outlineInfo, object field, FieldInfo fieldInfo, ref string fullName, ref bool allVariableIsNull, ref bool errorOccurred)
         {
-            Type type = field.GetType().GetGenericArguments()[0];
+            Type type = fieldInfo.FieldType.GetGenericArguments()[0];
             Type listType = typeof(List<>).MakeGenericType(new[] { type });
             IList returnList = (IList)Activator.CreateInstance(listType);
 
@@ -431,7 +452,14 @@ namespace OutlineInfoManager
 
                 for (int listCount = itemList.Count; listCount < xlData.Value.Count; ++listCount)
                 {
-                    itemList.Add(Activator.CreateInstance(objectType));
+                    if(objectType == typeof(string))
+                    {
+                        itemList.Add("");
+                    }
+                    else
+                    {
+                        itemList.Add(Activator.CreateInstance(objectType));
+                    }
                 }
             }
         }
