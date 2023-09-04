@@ -157,6 +157,15 @@ namespace OutlineInfoManager
             int rowCount = sheet.UsedRange.Rows.Count;
             int columnCount = sheet.UsedRange.Columns.Count;
 
+            if (outlineInfo.IsVerticalData == false)
+            {
+                columnCount = range.Columns.Count;
+            }
+            else
+            {
+                columnCount = range.Rows.Count;
+            }
+
             var propertyList = MakePropertiesStringFromXLData(sheet, outlineInfo, columnCount);
             List<object> itemList = new List<object>();
             XLDataListType xlDataList = new XLDataListType();
@@ -167,13 +176,13 @@ namespace OutlineInfoManager
                     if (xlDataList.ContainsKey(propertyList[columnIndex]) == false)
                     {
                         List<object> objectList = new List<object>();
-                        objectList.Add(range.Cells[columnIndex][rowIndex].Value);
+                        objectList.Add(GetDataFromCell(range, columnIndex, rowIndex, outlineInfo.IsVerticalData).Value);
 
                         xlDataList.Add(propertyList[columnIndex], objectList);
                     }
                     else
                     {
-                        xlDataList[propertyList[columnIndex]].Add(range.Cells[columnIndex][rowIndex].Value);
+                        xlDataList[propertyList[columnIndex]].Add(GetDataFromCell(range, columnIndex, rowIndex, outlineInfo.IsVerticalData).Value);
                     }
                 }
 
@@ -216,11 +225,6 @@ namespace OutlineInfoManager
             {
                 for (int column = 1; column <= columnCount; ++column)
                 {
-                    if (outlineInfo.IsVerticalData == true && column == 1)
-                    {
-                        continue;
-                    }
-
                     Range objectRange = GetDataFromCell(range, column, row, outlineInfo.IsVerticalData);
                     if (objectRange.MergeCells == false)
                     {
