@@ -377,8 +377,9 @@ namespace OutlineInfoManager
 
             List<object> itemList = new List<object>();
             bool listElementIsItemType = IsItemType(type);
+            bool isObjectType = IsStruct(type) | IsClassType(type);
 
-            if(listElementIsItemType == false)
+            if(IsListType(type) == true)
             {
                 PushName(ref fullName, type.Name);
             }
@@ -432,8 +433,9 @@ namespace OutlineInfoManager
                     }
                 }
 
-                returnList.Add(item);
             }
+
+            returnList.Add(item);
         }
 
         private void AddNullItemByXLData(XLDataListType xlDataList, string variableFullName, List<object> itemList, Type objectType)
