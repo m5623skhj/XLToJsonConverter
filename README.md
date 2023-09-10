@@ -25,7 +25,6 @@ dataFilePath : excel 파일 데이터 파일 경로
 jsonSavePath : 출력 결과로 나올 json 파일 데이터 경로
 
 * XLDataOutline.json
-
 ** ObjectType : 컨버팅될 대상 클래스나 구조체 이름 / 기본 namespace로 Data를 달고 있어야하며, 그 이후로는 추가된 네임스페이스와 구조체 명으로 기술
 ** XLFileName : 컨버팅될 대상 excel 파일
 ** SheetName : 컨버팅될 대상 sheet의 이름
