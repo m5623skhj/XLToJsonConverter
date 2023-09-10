@@ -24,13 +24,13 @@ dataFilePath : excel 파일 데이터 파일 경로
 
 jsonSavePath : 출력 결과로 나올 json 파일 데이터 경로
 
-* XLDataOutline.json
-** ObjectType : 컨버팅될 대상 클래스나 구조체 이름 / 기본 namespace로 Data를 달고 있어야하며, 그 이후로는 추가된 네임스페이스와 구조체 명으로 기술
-** XLFileName : 컨버팅될 대상 excel 파일
-** SheetName : 컨버팅될 대상 sheet의 이름
-** SaveFileName : 저장할 json 파일 이름
-** HeaderCount : 실제 데이터가 아닌 헤더들의 갯수
-** IsVerticalData : 수직 데이터 엑셀인지에 대한 값 / 예시로 작성된 Sheet2 참고
+2.1 XLDataOutline.json
+2.1.1 ObjectType : 컨버팅될 대상 클래스나 구조체 이름 / 기본 namespace로 Data를 달고 있어야하며, 그 이후로는 추가된 네임스페이스와 구조체 명으로 기술
+2.1.2 XLFileName : 컨버팅될 대상 excel 파일
+2.1.3 SheetName : 컨버팅될 대상 sheet의 이름
+2.1.4 SaveFileName : 저장할 json 파일 이름
+2.1.5 HeaderCount : 실제 데이터가 아닌 헤더들의 갯수
+2.1.6 IsVerticalData : 수직 데이터 엑셀인지에 대한 값 / 예시로 작성된 Sheet2 참고
 
 ---
 
