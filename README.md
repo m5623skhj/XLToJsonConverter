@@ -97,18 +97,21 @@ excel 파일에는 하나의 ObjectType에 대한 기술을 합니다.
 
 ---
 
-예시 1. 일반적인 형태의 시트
+예시 1. 일반적인 형태의 시트 :
+
 
 ![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/da1012b8-7412-40b4-a7b9-3c533851cb03)
 
 ---
 
-예시 2. 구조체를 포함하거나, 배열을 포함한 시트
+예시 2. 구조체를 포함하거나, 배열을 포함한 시트 :
+
 
 ![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/5f923a5a-2a58-41bc-a8d4-ed056f64f8a4)
 
 ---
 
-예시 3. 수직으로 작성된 시트
+예시 3. 수직으로 작성된 시트 :
+
 
 ![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/b17e58d1-a2dd-4b43-974f-150c3046a28d)
