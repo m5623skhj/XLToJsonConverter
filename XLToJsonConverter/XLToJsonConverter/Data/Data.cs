@@ -1,15 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using XLToJsonConverter.Data;
 
 namespace Data
 {
-    public struct Test
+    public class Test : DataObjectBase
     {
         public int? id;
         public string stringItem;
+
+        public override object GetKeyObject()
+        {
+            return id;
+        }
     }
 
-    public struct Test2
+    public class Test2 : DataObjectBase
     {
         public struct Ids
         {
@@ -20,9 +25,14 @@ namespace Data
         public Ids ids;
         public List<string> arrayType1;
         public List<Ids> arrayType2;
+
+        public override object GetKeyObject()
+        {
+            return ids.id1;
+        }
     }
 
-    public struct Test3
+    public class Test3 : SingleDataObjectBase
     {
         public struct Temp
         {
