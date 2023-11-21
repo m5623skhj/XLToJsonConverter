@@ -6,6 +6,7 @@
 2. 파일 관련
 3. 속성
 4. 사용 방법
+5. 이후 추가 사항
 
 ---
 
@@ -115,3 +116,30 @@ excel 파일에는 하나의 ObjectType에 대한 기술을 합니다.
 
 
 ![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/b17e58d1-a2dd-4b43-974f-150c3046a28d)
+
+
+---
+
+5. 이후 추가 사항
+
+5.1 DataManager 추가
+
+해당 프로그램으로 뽑은 json 파일들을 읽고, 해당 json object들을 실제 사용자가 정의한 class로 변환한 후, 해당 데이터 객체들을 가지고 있는 클래스입니다.
+
+DataHelper를 통해 접근할 수 있으며, 먼저 StartLoad()를 통해 json 파일을 읽고, 아래와 같이 데이터 클래스를 정의 및 호출할 수 있습니다.
+
+5.1.1 key를 가지고 있는 데이터의 경우
+
+key를 가지고 있다면, XLToJsonConverter.Data.DataObjectBase를 상속 받고, GetKeyObject()를 재정의해야 합니다.
+
+key가 중복될 경우, StartLoad()중 에러가 발생합니다.
+
+![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/3da864f5-4d21-4b47-9729-2c24f6929ce6)
+
+5.1.2 하나의 데이터만을 가질 경우
+
+XLToJsonConverter.Data.SingleDataObjectBase를 상속 받기만 하면 됩니다.
+
+이 데이터의 경우, json 데이터가 1개를 초과한다면, StartLoad()중 에러가 발생합니다.
+
+![image](https://github.com/m5623skhj/XLToJsonConverter/assets/42509418/a7e5ef0b-7219-400f-802f-fd3dbc5bb387)
